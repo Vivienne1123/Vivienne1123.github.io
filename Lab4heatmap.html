@@ -1,0 +1,94 @@
+<html>
+<head>
+  <title>Heat Map</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+     integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI="
+     crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+    integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM="
+    crossorigin=""></script>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="leaflet-heat.js"></script>
+  <style>
+    #map{ width: 800px; height: 500px; }
+  </style>
+</head>
+
+<body>
+
+  <div id="map"></div>
+  <script>
+      // initialize the map
+      var map = L.map('map').setView([40, -89], 6);
+
+      // load a tile layer
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+      
+      var geojsonLayer = L.geoJSON(null, {
+        onEachFeature: function(feature, layer) {
+				// Optional: add popups or other interactions to each feature
+			}
+		  }).addTo(map);
+
+      // $.getJSON("https://gist.githubusercontent.com/raechelportelli/91c6caf9af3daf85a7a2fe1eec079a10/raw/28c42649557d8e286c54bc9ef97af4c17bafdd96/secondEd.geojson",
+      //   function(data) {
+      //     geojsonLayer.addData(data);
+      //   }
+      // )
+
+      // var heatData = [];
+      // geojsonLayer.eachLayer(function(layer) {
+      //   var latlng = layer.getLatLng();
+      //   var value = layer.value;
+      //   heatData.push([latlng.lat, latlng.lng, value]);
+      // });
+      
+      // var heatLayer = L.heatLayer(heatData, {
+			// 	radius: 100,
+			// 	blur: 10,
+			// 	opacity: 1,
+			// 	maxZoom: 17,
+			// 	max: 4.0,	
+
+			// 	gradient: {
+			// 		0.0: 'green',
+			// 		0.5: 'yellow',
+			// 		1.0: 'red'}
+			// }).addTo(map);
+
+      var heatData = [];
+
+    // Function to process the GeoJSON data and extract the required information for the heatmap
+    function processGeoJSON(data) {
+      data.features.forEach(function(feature) {
+        // Assuming 'value' is a property in the feature's properties, adjust as needed
+        var value = feature.properties.value;
+        var coordinates = feature.geometry.coordinates;
+        heatData.push([coordinates[1], coordinates[0], value]);
+      });
+
+      // Create and add the heatmap layer to the map after processing the GeoJSON data
+      var heatLayer = L.heatLayer(heatData, {
+        radius: 100,
+        blur: 10,
+        opacity: 1,
+        maxZoom: 17,
+        max: 4.0,
+        gradient: {
+          0.0: 'green',
+          0.5: 'yellow',
+          1.0: 'red'
+        }
+      }).addTo(map);
+    }
+
+    // Fetch the GeoJSON data and call the processGeoJSON function once the data is loaded
+    $.getJSON("https://gist.githubusercontent.com/raechelportelli/91c6caf9af3daf85a7a2fe1eec079a10/raw/28c42649557d8e286c54bc9ef97af4c17bafdd96/secondEd.geojson", processGeoJSON);
+
+  </script>
+</body>
+</html>
