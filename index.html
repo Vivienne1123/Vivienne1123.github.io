@@ -45,7 +45,7 @@
 
   <div id="map"></div>
   <script type="text/javascript" src="il_ed.js"></script>
-  <script type="text/javascript" src="secondEd.js"></script>
+  <!-- <script type="text/javascript" src="secondEd.js"></script> -->
   <script>
       // initialize the map
       var map = L.map('map').setView([40, -89], 6);
@@ -54,82 +54,111 @@
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       }).addTo(map);
+      
+      // marker = L.marker([40.1, -89.1]).addTo(map)
+      // marker.bindPopup("<b>Hello world!</b><br>I am a popup.").openPopup();
+      
+      var popup = L.popup();
+
+      function onMapClick(e) {
+          popup
+              .setLatLng(e.latlng)
+              .setContent("You clicked the map at " + e.latlng.toString())
+              .openOn(map);
+      }
+
+      map.on('click', onMapClick);
 
 
-//function formats the shape color based on the attribute d's value
-function getColor(EdNorm) {
-    return EdNorm > 35.19  ? '#BD0026' :
-           EdNorm > 22.91  ? '#E31A1C' :
-           EdNorm > 12.87  ? '#FC4E2A' :
-           EdNorm > 0  ? '#FD8D3C' :
-                      '#FFEDA0';
-}
-function style(feature) {
-    return {
-        fillColor: getColor(feature.properties.EdNorm), //color by density attribute
-        weight: 0.5, //line weight
-        opacity: 1, //line opacity
-        color: 'black', //line color
-        fillOpacity: 0.7 //shape file
-    };
-}
+      var info = L.control();
 
-function highlightFeature(e) {
-		const layer = e.target;
+      info.onAdd = function (map) {
+          this._div = L.DomUtil.create('div', 'info'); // create a div with a class "info"
+          this.update();
+          return this._div;
+      };
 
-		layer.setStyle({
-			weight: 5,
-			color: 'white',
-			fillOpacity: 0.9
-		});
+      info.update = function (edu) {
+        const contents = edu ? `<b>${edu.EdNorm} %</b><br />${edu.CountyName}` : 'Hover over a county';
+        this._div.innerHTML = `<h4>Population with Bachelor's Degree</h4>${contents}`;
+      };
 
-		layer.bringToFront();
-
-		//info.update(layer.feature.properties); //we will use this in a bit.
-	}
-
-  function resetHighlight(e) {
-		IllinoisGeoJSON.resetStyle(e.target);
-		//info.update();
-	}
-
-  function onEachFeature(feature, layer) {
-		layer.on({
-			mouseover: highlightFeature,
-			mouseout: resetHighlight,
-			//click: zoomToFeature
-		});
-  }
+      info.addTo(map);
 
 
-const IllinoisGeoJSON = L.geoJson(IllioisGJSON, {
-  style,
-  onEachFeature
-	}).addTo(map);
-const SecondGeoJSON = L.geoJson(secondEd).addTo(map);
+      //function formats the shape color based on the attribute d's value
+      function getColor(EdNorm) {
+          return EdNorm > 35.19  ? '#BD0026' :
+                EdNorm > 22.91  ? '#E31A1C' :
+                EdNorm > 12.87  ? '#FC4E2A' :
+                EdNorm > 0  ? '#FD8D3C' :
+                            '#FFEDA0';
+      }
+      function style(feature) {
+          return {
+              fillColor: getColor(feature.properties.EdNorm), //color by density attribute
+              weight: 0.5, //line weight
+              opacity: 1, //line opacity
+              color: 'black', //line color
+              fillOpacity: 0.7 //shape file
+          };
+      }
 
-//locates the legend in the bottom right of the map
-var legend = L.control({position: 'bottomright'});
+      function highlightFeature(e) {
+          const layer = e.target;
 
-//adds the legend to the map in a <div> 
-legend.onAdd = function (map) {
+          layer.setStyle({
+            weight: 5,
+            color: 'white',
+            fillOpacity: 0.9
+          });
 
-    var div = L.DomUtil.create('div', 'info legend'),
-        grades = [10.5 , 17.5, 27.5],
-        labels = [];
+          layer.bringToFront();
 
-// loop through our EdNorm intervals and generate a label and colored square
-    for (var i = 0; i < grades.length; i++) {
-        div.innerHTML +=
-            '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
-            grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
-    }
+          info.update(layer.feature.properties); //we will use this in a bit.
+        }
 
-    return div;
-};
+        function resetHighlight(e) {
+          IllinoisGeoJSON.resetStyle(e.target);
+          info.update();
+        }
 
-//adds the legend to the map
-legend.addTo(map);
+        function onEachFeature(feature, layer) {
+          layer.on({
+            mouseover: highlightFeature,
+            mouseout: resetHighlight,
+            //click: zoomToFeature
+          });
+        }
+
+      const IllinoisGeoJSON = L.geoJson(IllioisGJSON, {
+        style,
+        onEachFeature
+        }).addTo(map);
+      // const SecondGeoJSON = L.geoJson(secondEd).addTo(map);
+
+      //locates the legend in the bottom right of the map
+      var legend = L.control({position: 'bottomright'});
+
+      //adds the legend to the map in a <div> 
+      legend.onAdd = function (map) {
+
+          var div = L.DomUtil.create('div', 'info legend'),
+              grades = [10.5 , 17.5, 27.5],
+              labels = [];
+
+      // loop through our EdNorm intervals and generate a label and colored square
+          for (var i = 0; i < grades.length; i++) {
+              div.innerHTML +=
+                  '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
+                  grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+          }
+
+          return div;
+      };
+
+      //adds the legend to the map
+      legend.addTo(map);
 
   </script>
 </body>
