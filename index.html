@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html>
-
-
 <head>
 	<meta charset="utf-8" />
-	<title>Two choropleth Maps with 2D Density Plots</title>
+	<title>Crimes in Chicago</title>
 
+    <script src="./data_crime/geocomm.js"></script>
+	<script src="./data_crime/out.js"></script>
 	<script src="./data/GEO_JSON_Cook.js"></script>
 	<script src="./data/GEO_VARIABLES_Cook.js"></script>
 	
@@ -19,19 +19,19 @@
 
 <body onload="entryPoint()">
 	
-	<h1>Two choropleth Maps with 2D Histogram Contour Plot</h1>
+	<h1>Crimes in Chicago Since 2001</h1>
 	
 	<div id="mapContainer">
-		<div id="map1" class="mapArea">
+		<div id="map" class="mapArea">
 			<div class="trace"></div>
+            <div class="trace"></div>
 			<div class="map"></div>
 		</div>
-		<div id="map2" class="mapArea">
-			<div class="trace"></div>
-			<div class="map"></div>
-		</div>
-		<div id="chart" class="mapArea">
+		<div id="chart" class="chartArea">
+            <div class="trace"></div>
+            <div class="trace"></div>
 			<div class="chart"></div>
+            <div class="chart"></div>
 		</div>
 	</div>
 
@@ -39,12 +39,14 @@
 <script type="text/javascript">
 
 // define global variables
-var TRACE1 = "% Hispanic";
-var TRACE2 = "% Black";
-var TRACES = ["% Hispanic", "% Black"];
+var CRIMES = ['All', 'Safety','Property', 'Others'];
+var CRIME_TRACE = 'All';
+var TIMES = ["All-day", "Day", "Night"];
+var TIME_TRACE = "All-day";
+
 var NUMBER_OF_CLASS = 7;                                      // range: 5 ~ 9
-var CLASSIFICATION_METHOD = "Jenks"                        // Equal, Quantile or Jenks
-var COLOR_HUE = "Blue";                              // Red, Green or Blue
+var CLASSIFICATION_METHOD = "Jenks";                      // Equal, Quantile or Jenks
+var COLOR_HUE = "Red";                              // Red, Green or Blue
 var NO_DATA = -9999;
 var COLOR_CLASS = {
 	"Red_5"     : ["#fee5d9", "#fcae91", "#fb6a4a", "#de2d26", "#a50f15"],
@@ -67,28 +69,21 @@ var COLOR_CLASS = {
 	"Yellow_to_Red_6" : ["#ffffb2", "#fed976", "#feb24c", "#fd8d3c", "#f03b20", "#bd0026"],
 	"Yellow_to_Red_7" : ["#ffffb2", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#b10026"],
 	"Yellow_to_Red_8" : ["#ffffcc" ,"#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#b10026"],
-   	"Yellow_to_Red_9" : ["#ffffcc" ,"#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"]	
+   	"Yellow_to_Red_9" : ["#ffffcc" ,"#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"]
 };
 // changeable global variables
 var app = {
+	"map": null,                                                     // leaflet object of map
 	"assembledGeoJSON": null,                                        // GeoJSON format with properties and geometry data
-	"map1": {
-		"map": null,                                                 // leaflet object of map
-		"intervals": null,                                           // intervals by classification
-		"colors": null,                                              // color hue
-		"info": null,                                                // leaflet object of info
-		"legend": null,                                              // leaflet object of legend
-	},
-	"map2": {
-		"map": null,                                                 // leaflet object of map
-		"intervals": null,                                           // intervals by classification
-		"colors": null,                                              // color hue
-		"info": null,                                                // leaflet object of info
-		"legend": null,                                              // leaflet object of legend
-	},
+	"intervals": null,                                               // intervals by classification
+	"colors": null,                                                  // color hue
+	"info": null,                                                    // leaflet object of info
+	"legend": null,                                                  // leaflet object of legend
+    "chartdata": null,
+    "chartdata_year": null,
+    "clickedFeaturecomm":null
 }
 // end of global variables
-
 
 
 /**
@@ -97,31 +92,100 @@ var app = {
  */
 function entryPoint() {
 	
-	app.assembledGeoJSON = assembleGeoJSON(GEO_JSON, GEO_VARIABLES);
+    var filteredData = filterGeo(CRIME_VARIABLES, CRIME_TRACE, TIME_TRACE);
+    const data = convertTableToArrayOfObjects([...filteredData]);
+    const aggregatedData = aggregateData(data, ['Community Area']); 
+    const new_CRIME_VARIABLES = convertArrayOfObjectsToTable([...['Community Area'], 'Count'], Object.values(aggregatedData));
+    app.assembledGeoJSON = assembleGeoJSON(GEO_JSON_COMM, new_CRIME_VARIABLES);
+    
+    const aggregatedData1 = aggregateData(data, ['Year', 'Month']);
+    app.chartdata = convertArrayOfObjectsToTable([...['Year', 'Month'], 'Count'], Object.values(aggregatedData1));
+
+    const aggregatedData2 = aggregateData(data, ['Year']);
+    app.chartdata_year = convertArrayOfObjectsToTable([...['Year'], 'Count'], Object.values(aggregatedData2));
+
+	app.map = draw_baseMap("map", CRIME_TRACE, TIME_TRACE);
+
+	app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, 'Count');
+	app.colors = COLOR_CLASS[COLOR_HUE + "_" + NUMBER_OF_CLASS];
+	draw_choroplethMap('Count');
 	
-	var map = "map1";
-	app[map] = {};
-	var mapN = app[map];
-	
-	mapN.map = draw_baseMap(map, TRACES, TRACE1);
-	var e = document.getElementById(map).getElementsByClassName("traceSelect")[0];
-	var trace = e.options[e.selectedIndex].value;
-	mapN.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace)
-	mapN.colors = COLOR_CLASS[COLOR_HUE + "_" + NUMBER_OF_CLASS]
-	draw_choroplethMap(mapN, trace);
-	
-	var map = "map2";
-	app[map] = {};
-	var mapN = app[map];
-	
-	mapN.map = draw_baseMap(map, TRACES, TRACE2);
-	var e = document.getElementById(map).getElementsByClassName("traceSelect")[0];
-	var trace = e.options[e.selectedIndex].value;
-	mapN.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace)
-	mapN.colors = COLOR_CLASS[COLOR_HUE + "_" + NUMBER_OF_CLASS]
-	draw_choroplethMap(mapN, trace);
-	
-	draw_2dDensityPlots();
+	draw_Plots(app.chartdata, app.chartdata_year);
+}
+
+
+/**
+ * processing geoVariables trace input
+ * geoVariables: CSV format first column of each row must be geoid
+ */
+ function arrayToObject(headers, row) {
+  return headers.reduce((acc, key, i) => {
+    acc[key] = row[i];
+    return acc;
+  }, {});
+}
+
+function convertTableToArrayOfObjects(table) {
+  const headers = table.shift();
+  return table.map(row => arrayToObject(headers, row));
+}
+
+function aggregateData(data, keyColumns) {
+  return data.reduce((accumulator, item) => {
+    const key = keyColumns.map(column => item[column]).join('_');
+    if (!accumulator[key]) {
+      accumulator[key] = {
+        ...keyColumns.reduce((acc, column) => {
+          acc[column] = item[column];
+          return acc;
+        }, {}),
+        'Count': 0
+      };
+    }
+
+    accumulator[key].Count += item.Count;
+    return accumulator;
+  }, {});
+}
+
+function convertArrayOfObjectsToTable(headers, data) {
+  const table = [headers];
+  table.push(...data.map(row => headers.map(header => row[header])));
+  return table;
+}
+
+
+// filter data
+// usage: filteredData = filterGeo(CRIME_VARIABLES, 'Safety', 'Night');
+function filterTable(data, headers, conditions) {
+    return data.filter(row => {
+        for (const key in conditions) {
+        const columnIndex = headers.indexOf(key);
+        if (columnIndex === -1 || row[columnIndex] != conditions[key]) {
+            return false;
+        }
+        }
+        return true;
+    });
+}
+
+function filterGeo(geoVariables, crime_trace, time_trace){
+    if (crime_trace == "All" && time_trace == 'All-day'){
+        return geoVariables;
+    } else if (crime_trace != "All" && time_trace == 'All-day'){
+        var filterConditions = {'Primary Type': crime_trace};
+    } else if (crime_trace == "All" && time_trace != 'All-day'){
+        var filterConditions = {'DayNight': time_trace};
+    } else {
+        var filterConditions = { 'Primary Type': crime_trace, 'DayNight': time_trace };
+    }
+
+    const headers = geoVariables.shift();
+    const re = filterTable(geoVariables, headers, filterConditions);
+    re.unshift(headers);
+    geoVariables.unshift(headers);
+
+    return re
 }
 
 
@@ -132,9 +196,9 @@ function entryPoint() {
  */
 function assembleGeoJSON(geoJSON, geoVariables) {
 	
-	var geoFeatures = {}                                             // key: geoid,  value: {geometry, properties}
+	var geoFeatures = {}                                             // key: area_numbe,  value: {geometry, properties}
 	geoJSON.features.forEach(function(row, i) {
-		geoFeatures[row.properties.geoid] = {"geometry": row.geometry, "properties": row.properties}
+		geoFeatures[row.properties.area_numbe] = {"geometry": row.geometry, "properties": row.properties}
 	});
 	
 	var title = geoVariables[0];                                     // save 1st row to a title
@@ -181,23 +245,35 @@ function classification(method, nClass, item) {
 /**
  * draw a base map
  * mDIV: id of <div> tag where to draw the map
- * variables: GEO_VARIABLES[0]  =>  title of CSV (1st column must be geoid)
  * return leaflet object of map
  */
-function draw_baseMap(mDIV, variables, trace) {
+function draw_baseMap(mDIV, crime_trace, time_trace) {
 
-  var traceDiv = document.getElementById(mDIV).getElementsByClassName("trace")[0];
-	var html_trace = 'Trace: <select id="traceSelect" class="traceSelect" onChange="trace_selected(\''+mDIV+'\')">';
-	//html_trace += '<option value="' + TRACE1 + '" class="line_none">' + TRACE1 + '</option>';
-	//html_trace += '<option value="' + TRACE2 + '" class="line_none">' + TRACE2 + '</option>';
-	for (var i=0; i<variables.length; i++) {
-		if (variables[i] == trace)
-			html_trace += '<option value="' + variables[i] + '" class="line_none" selected>' + variables[i] + '</option>';
+    // crime
+	var traceDiv_crime = document.getElementById(mDIV).getElementsByClassName("trace")[0];
+	var html_trace = 'Crime Type: <select id="traceSelect_crime" class="traceSelect" onChange="trace_selected()">';
+
+    for (var i=0; i<CRIMES.length; i++) {
+		if (CRIMES[i] == crime_trace)
+			html_trace += '<option value="' + CRIMES[i] + '" class="line_none" selected>' + CRIMES[i] + '</option>';
 		else
-			html_trace += '<option value="' + variables[i] + '" class="line_none">' + variables[i] + '</option>';
+			html_trace += '<option value="' + CRIMES[i] + '" class="line_none">' + CRIMES[i] + '</option>';
 	}
 	html_trace += '</select>';
-	traceDiv.innerHTML = html_trace;
+	traceDiv_crime.innerHTML = html_trace;
+
+    // time
+	var traceDiv_time = document.getElementById(mDIV).getElementsByClassName("trace")[1];
+	var html_trace = 'Time: <select id="traceSelect_time" class="traceSelect" onChange="trace_selected()">';
+
+    for (var i=0; i<TIMES.length; i++) {
+		if (TIMES[i] == time_trace)
+			html_trace += '<option value="' + TIMES[i] + '" class="line_none" selected>' + TIMES[i] + '</option>';
+		else
+			html_trace += '<option value="' + TIMES[i] + '" class="line_none">' + TIMES[i] + '</option>';
+	}
+	html_trace += '</select>';
+	traceDiv_time.innerHTML = html_trace;
 	
 	var mapDiv = document.getElementById(mDIV).getElementsByClassName("map")[0];
 	var mbAttr = 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
@@ -224,45 +300,63 @@ function draw_baseMap(mDIV, variables, trace) {
 
 /**
  * this function inboked by trace select in the drop-down list
- * mDIV: id of <div> tag where to draw the map
- * update mapN.intervals by selected trace
+ * update app.intervals by selected trace
  * call the draw_choroplethMap function
- * call the draw_2dDensityPlots function
  */
-function trace_selected(mDIV) {
-	
-	var mapN = app[mDIV];
-	
-	var e = document.getElementById(mDIV).getElementsByClassName("traceSelect")[0];
-	var trace = e.options[e.selectedIndex].value;
-	mapN.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace)
-	draw_choroplethMap(mapN, trace);
-	
-	draw_2dDensityPlots();
+function trace_selected() {
+
+    var e_crime = document.getElementById("traceSelect_crime");
+	var trace_crime = e_crime.options[e_crime.selectedIndex].value; 
+    var e_time = document.getElementById("traceSelect_time");
+	var trace_time = e_time.options[e_time.selectedIndex].value;
+
+    var filteredData = filterGeo(CRIME_VARIABLES, trace_crime, trace_time);
+    const data = convertTableToArrayOfObjects([...filteredData]);
+    const aggregatedData = aggregateData(data, ['Community Area']);
+    const new_CRIME_VARIABLES = convertArrayOfObjectsToTable([...['Community Area'], 'Count'], Object.values(aggregatedData));
+    app.assembledGeoJSON = assembleGeoJSON(GEO_JSON_COMM, new_CRIME_VARIABLES);
+
+    const aggregatedData1 = aggregateData(data, ['Year', 'Month']);
+    app.chartdata = convertArrayOfObjectsToTable([...['Year', 'Month'], 'Count'], Object.values(aggregatedData1));
+
+    const aggregatedData2 = aggregateData(data, ['Year']);
+    app.chartdata_year = convertArrayOfObjectsToTable([...['Year'], 'Count'], Object.values(aggregatedData2));
+
+	app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, 'Count')
+	draw_choroplethMap('Count');
+    draw_Plots(app.chartdata, app.chartdata_year);
+}
+
+
+function titleCase(str) {
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 
 /**
  * draw a choropleth map
- * mapN: app.map1 or app.map2
  * item: selected trace  
  */
-function draw_choroplethMap(mapN, item) {
+function draw_choroplethMap(item) {
 	
 	// control that shows state info on hover
-	if (mapN.hasOwnProperty("info") && mapN.info != null) mapN.info.remove();
-	mapN.info = L.control();
-	mapN.info.onAdd = function(map) {
+	if (app.info != null) app.info.remove();
+	app.info = L.control();
+	app.info.onAdd = function(map) {
 		this._div = L.DomUtil.create('div', 'info');
 		this.update();
 		return this._div;
 	};
-	mapN.info.update = function (props) {
+	app.info.update = function (props) {
 		this._div.innerHTML = '<h4>' + item + '</h4>' +  (props ?
-			props.geoid + ' :&nbsp; &nbsp;' + ((props[item] == NO_DATA) ? "no data" : '<b>' + props[item] + '</b>')
+        titleCase(props.community) + ' :&nbsp;' + ((props[item] == NO_DATA) ? "no data" : '<b>' + props[item] + '</b>')
 			: 'Hover over an area');
 	};
-	mapN.info.addTo(mapN.map);
+	app.info.addTo(app.map);
 	
 	// get getOpacity
 	function getOpacity(feature) {
@@ -274,9 +368,9 @@ function draw_choroplethMap(mapN, item) {
 		if (d == NO_DATA) {
 			return "#5E5E5E";
 		}
-		for (var i=mapN.colors.length-1; i>=0; i--) {
-			if (d >= mapN.intervals[i]) {
-				return mapN.colors[i];
+		for (var i=app.colors.length-1; i>=0; i--) {
+			if (d >= app.intervals[i]) {
+				return app.colors[i];
 			}
 		}
 	}
@@ -303,16 +397,38 @@ function draw_choroplethMap(mapN, item) {
 		if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
 			layer.bringToFront();
 		}
-		mapN.info.update(layer.feature.properties);
+		app.info.update(layer.feature.properties);
 	}
 	
 	function resetHighlight(e) {
 		geojson.resetStyle(e.target);
-		mapN.info.update();
+		app.info.update();
 	}
 
 	function zoomToFeature(e) {
-		mapN.map.fitBounds(e.target.getBounds());
+		// app.map.fitBounds(e.target.getBounds());
+
+        var e_crime = document.getElementById("traceSelect_crime");
+        var trace_crime = e_crime.options[e_crime.selectedIndex].value; 
+        var e_time = document.getElementById("traceSelect_time");
+        var trace_time = e_time.options[e_time.selectedIndex].value;
+        var clickedFeaturecomm = e.target.feature.properties.area_numbe;
+
+        var filteredData = filterGeo(CRIME_VARIABLES, trace_crime, trace_time);
+        
+        const headers = filteredData.shift();
+        var re = filterTable(filteredData, headers, {'Community Area': clickedFeaturecomm});
+        re.unshift(headers);
+        filteredData.unshift(headers);
+
+        const data = convertTableToArrayOfObjects([...re]);
+        const aggregatedData1 = aggregateData(data, ['Year', 'Month']);
+        app.chartdata = convertArrayOfObjectsToTable([...['Year', 'Month'], 'Count'], Object.values(aggregatedData1));
+        const aggregatedData2 = aggregateData(data, ['Year']);
+        app.chartdata_year = convertArrayOfObjectsToTable([...['Year'], 'Count'], Object.values(aggregatedData2));
+
+        draw_Plots(app.chartdata, app.chartdata_year);
+        app.map.fitBounds(e.target.getBounds());       
 	}
 	
 	function onEachFeature(feature, layer) {
@@ -326,118 +442,147 @@ function draw_choroplethMap(mapN, item) {
 	var geojson = L.geoJson(app.assembledGeoJSON, {
 		style: style,
 		onEachFeature: onEachFeature
-	}).addTo(mapN.map);
+	}).addTo(app.map);
 	
-	mapN.map.fitBounds(geojson.getBounds());                              // fit bounds from geojson object
+	app.map.fitBounds(geojson.getBounds());                              // fit bounds from geojson object
 	
-	if (mapN.hasOwnProperty("legend") && mapN.legend != null) mapN.legend.remove();
-	mapN.legend = L.control({position: 'bottomright'});
-	mapN.legend.onAdd = function (map) {
+	if (app.legend != null) app.legend.remove();
+	app.legend = L.control({position: 'bottomleft'});
+	app.legend.onAdd = function (map) {
 		var div = L.DomUtil.create('div', 'info legend');
 		var labels = [];
-		for (var i=0; i<mapN.colors.length; i++)
-			labels.push('<i style="background:' + mapN.colors[i] + '"></i>&nbsp; &nbsp;' + mapN.intervals[i].toFixed(2));
-		labels.push('<i style="background:' + getColor(NO_DATA) + '"></i>&nbsp; ' + 'no data'+ '<br>');
+		for (var i=0; i<app.colors.length; i++)
+			labels.push('<i style="background:' + app.colors[i] + '"></i>&nbsp; &nbsp;' + app.intervals[i].toFixed(0));
+		// labels.push('<i style="background:' + getColor(NO_DATA) + '"></i>&nbsp; ' + 'no data'+ '<br>');
 		div.innerHTML = labels.join('<br>');
 		return div;
 	};
-	mapN.legend.addTo(mapN.map);
+	app.legend.addTo(app.map);
 }
 
 
 /**
- * draw a 2D Histogram Contour Plot chart
- * map1: <div> id of map1
- * map2: <div> id of map2
- * cDIV: <div> id of chart
+ * draw a choropleth map
+ * item: selected trace  
  */
-function draw_2dDensityPlots(map1="map1", map2="map2", cDIV="chart") {
+// for ploting
+function reconstructData(data) {
+  let yearsArray = [];
+  let countsArray = [];
 
-	var e = document.getElementById(map1).getElementsByClassName("traceSelect")[0];
-	var t1 = e.options[e.selectedIndex].value;
-	
-	var e = document.getElementById(map2).getElementsByClassName("traceSelect")[0];
-	var t2 = e.options[e.selectedIndex].value;
-	
-	var chartDiv = document.getElementById(cDIV).getElementsByClassName("chart")[0];
-	
-	var x = [];
-	var y = [];
-	app.assembledGeoJSON.features.forEach(function(feature, i) {
-		if (feature.properties[t1] != NO_DATA) x.push(feature.properties[t1]);
-		if (feature.properties[t2] != NO_DATA) y.push(feature.properties[t2]);
-	});
-	
-	var trace1 = {
-		x: x,
-		y: y,
-		mode: 'markers',
-		name: 'points',
-		marker: {
-			color: 'rgb(102,0,0)',
-			size: 2,
-			opacity: 0.4
-		},
-		type: 'scatter'
-	};
-	var trace2 = {
-		x: x,
-		y: y,
-		name: 'density',
-		ncontours: 20,
-		colorscale: 'Hot',
-		reversescale: true,
-		showscale: false,
-		type: 'histogram2dcontour'
-	};
-	var trace3 = {
-		x: x,
-		name: 'x density',
-		marker: {color: 'rgb(102,0,0)'},
-		yaxis: 'y2',
-		type: 'histogram'
-	};
-	var trace4 = {
-		y: y,
-		name: 'y density',
-		marker: {color: 'rgb(102,0,0)'},
-		xaxis: 'x2',
-		type: 'histogram'
-	};
-	var data = [trace1, trace2, trace3, trace4];
-	var layout = {
-		showlegend: false,
-		autosize: false,
-		width: chartDiv.clientWidth,
-		height: chartDiv.clientHeight,
-		margin: {t: 50},
-		hovermode: 'closest',
-		bargap: 0,
-		xaxis: {
-			title: t1,
-			domain: [0, 0.85],
-			showgrid: false,
-			zeroline: false
-		},
-		yaxis: {
-			title: t2,
-			domain: [0, 0.85],
-			showgrid: false,
-			zeroline: false
-		},
-		xaxis2: {
-			domain: [0.85, 1],
-			showgrid: false,
-			zeroline: false
-		},
-		yaxis2: {
-			domain: [0.85, 1],
-			showgrid: false,
-			zeroline: false
-		}
-	};
-	
-	Plotly.newPlot(chartDiv, data, layout);	
+  // Process input data
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    const year = row[0];
+    const month = row[1];
+    const count = row[2];
+
+    // If the month index doesn't exist in the arrays, create a new array for it
+    if (!yearsArray[month - 1]) {
+      yearsArray[month - 1] = [];
+      countsArray[month - 1] = [];
+    }
+
+    // Add year and count to the corresponding arrays
+    yearsArray[month - 1].push(year);
+    countsArray[month - 1].push(count);
+  }
+
+  return [yearsArray, countsArray];
+}
+
+function reconstructData_year(data) {
+  let years = ["Year"];
+  let counts = ["Count"];
+
+  // Process input data
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    years.push(row[0]);
+    counts.push(row[1]);
+  }
+
+  return [years, counts];
+}
+
+function draw_Plots(chartdata, chartdata_year, cDIV="chart"){
+    var chartDiv_month = document.getElementById(cDIV).getElementsByClassName("chart")[0];
+    var chartDiv_year = document.getElementById(cDIV).getElementsByClassName("chart")[1];
+
+    var xData = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    var headers = chartdata.shift();
+    var [yearsArray, countsArray] = reconstructData(chartdata);
+    chartdata.unshift(headers)
+
+    var data_month = [];
+    for ( var i = 0; i < xData.length; i ++ ) {
+        var result = {
+            type: 'box',
+            y: countsArray[i],
+            name: xData[i],
+            text: yearsArray[i].map(year => `Year: ${year}`),
+            boxpoints: 'all',
+            jitter: 0.5,
+            whiskerwidth: 0.2,
+            fillcolor: 'Pastel2',
+            marker: {
+                size: 2
+            },
+            line: {
+                width: 1
+            }
+        };
+        data_month.push(result);
+    };
+
+    layout_month = {
+        title: 'Monthly Crimes',
+        yaxis: {
+            autorange: true,
+            showgrid: true,
+            zeroline: true,
+            gridwidth: 1
+        },
+        margin: {
+            l: 40,
+            r: 20,
+            b: 50,
+            t: 100
+        },
+        paper_bgcolor: 'rgb(221, 221, 221)',
+        plot_bgcolor: 'rgb(221, 221, 221)',
+        showlegend: false
+    };
+
+    Plotly.newPlot(chartDiv_month, data_month, layout_month);
+
+    [years, counts] = reconstructData_year(chartdata_year)
+    var trace1 = {
+        type: 'bar',
+        x: years,
+        y: counts,
+        marker: {
+            color: 'rgb(237, 159, 132)',
+        }
+    };
+
+    var layout = { 
+        title: 'Yearly crimes',
+        paper_bgcolor: 'rgb(221, 221, 221)',
+        plot_bgcolor: 'rgb(221, 221, 221)',
+        zeroline: true,
+        margin: {
+            l: 40,
+            r: 20,
+            b: 50,
+            t: 100
+        },
+    };
+
+    var config = {responsive: true}
+
+    Plotly.newPlot(chartDiv_year, [trace1], layout, config );
 }
 
 </script>

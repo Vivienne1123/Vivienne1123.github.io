@@ -1,22 +1,28 @@
 #mapContainer { 
-	height: 550px; 
+	height: 750px; 
 	width: 100%; 
 }
 #mapContainer .mapArea { 
-	width: 500px; 
+	width: 750px; 
+	height: 100%; 
+	float: left; 
+}
+#mapContainer .chartArea { 
+	width: 700px; 
 	height: 100%; 
 	float: left; 
 }
 #mapContainer .map { 
-	width: 500px; 
-	height: 500px; 
+	width: 750px; 
+	height: 750px; 
 }
 #mapContainer .trace { 
 	text-align: right; 
 	height: 25px; 
 }
+
 #mapContainer .traceSelect {
-	width: 300px; 
+	width: 100px; 
 }
 #mapContainer .info {
 	padding: 6px 8px;
@@ -44,6 +50,6 @@
 	opacity: 0.7;
 }
 #mapContainer .chart { 
-	width: 500px; 
-	height: 500px; 
+	width: 700px; 
+	height: 375px; 
 }
